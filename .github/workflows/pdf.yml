@@ -19,9 +19,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 16
-          
-      - name: Set up Asciidoctor PDF
-        run: gem install asciidoctor-pdf
 
       - name: Install Antora + PDF extension (local)
         run: |
