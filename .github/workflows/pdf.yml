@@ -58,11 +58,22 @@ jobs:
 
       - name: Build Antora site & PDF
         run: |
-          OUTPUT=$(antora --stacktrace antora-playbook.yml 2>&1)
-          EXIT_CODE=$?
-          echo "$OUTPUT"
-          if [[ "$OUTPUT" == *"ERROR"* || "$OUTPUT" == *"WARN"* ]]; then
-            echo "::error::Antora build produced errors or warnings."
+          # 排错：打印 playbook 内容，确认缩进/字段
+          echo "--- playbook.yml ---"
+          cat antora-playbook.yml
+          echo "--------------------"
+
+          set -x          # 显示每一条命令
+          antora --stacktrace antora-playbook.yml 2>&1 | tee antora.log
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "------ 完整 Antora 输出 ------"
+          cat antora.log
+          echo "------------------------------"
+
+          # 只要出现 FATAL / ERROR / WARN 就让 CI 失败
+          if grep -iE 'fatal|error|warn' antora.log; then
+            echo "::error::Antora build failed / warning detected."
             exit 1
           fi
           exit $EXIT_CODE
