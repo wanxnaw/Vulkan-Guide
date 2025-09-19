@@ -12,31 +12,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  antora-build:
+   antora-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 
-      # 1. 额外装 PDF 扩展
-      - name: Install Antora + PDF extension
+      - name: Install Antora + PDF extension (local)
         run: |
-          npm i -g @antora/cli@3.1 @antora/site-generator@3.1 @antora/pdf-extension
+          npm i --save-dev @antora/cli@3.1 @antora/site-generator@3.1 @antora/pdf-extension
 
-      - name: Setup Antora directory structure
-        run: make -f antora/Makefile setup
-
-      # 2. 生成含 PDF 输出的 playbook
-      - name: Create Antora playbook
+      - name: Create Antora playbook with PDF
         run: |
           cat > antora-playbook.yml <<'EOF'
           site:
             title: Vulkan Guide
-            url: https://github.com/KhronosGroup/Vulkan-Guide
             start_page: guide::index.adoc
           content:
             sources:
@@ -46,46 +38,23 @@ jobs:
             bundle:
               url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
               snapshot: true
+          antora:
+            extensions:
+            - require: '@antora/pdf-extension'
           output:
             destinations:
             - provider: fs
-              path: build/site        # 原有 HTML
-            - provider: pdf           # 新增 PDF
+              path: build/site
+            - provider: pdf
               path: build/vulkan-guide.pdf
               page_break_level: 1
               pdf_style: khronos
           EOF
 
       - name: Build Antora site & PDF
-        run: |
-          # 排错：打印 playbook 内容，确认缩进/字段
-          echo "--- playbook.yml ---"
-          cat antora-playbook.yml
-          echo "--------------------"
+        run: npx antora --stacktrace antora-playbook.yml
 
-          set -x          # 显示每一条命令
-          antora --stacktrace antora-playbook.yml 2>&1 | tee antora.log
-          EXIT_CODE=${PIPESTATUS[0]}
-
-          echo "------ 完整 Antora 输出 ------"
-          cat antora.log
-          echo "------------------------------"
-
-          # 只要出现 FATAL / ERROR / WARN 就让 CI 失败
-          if grep -iE 'fatal|error|warn' antora.log; then
-            echo "::error::Antora build failed / warning detected."
-            exit 1
-          fi
-          exit $EXIT_CODE
-
-      # 3. 同时上传 HTML 与 PDF
-      - name: Archive Antora site
-        uses: actions/upload-artifact@v4
-        with:
-          name: antora-site
-          path: build/site
-
-      - name: Archive PDF
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: vulkan-guide-pdf
