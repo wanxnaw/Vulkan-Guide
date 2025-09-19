@@ -1,44 +1,47 @@
-name: Build PDF
+name: Build Vulkan-Guide PDF
 
 on:
-  workflow_dispatch:   # 手动触发
-  push:
-    branches: [ main ]
+  workflow_dispatch:   # 仅手动触发，避免自动跑
 
 jobs:
   pdf:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      actions: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          submodules: true   # Vulkan-Guide 引用了外部模块
-          fetch-depth: 0
+          submodules: true   # 拉取 UI bundle
 
-      - name: Install pandoc & tex
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Antora & PDF extension
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y texlive-latex-base texlive-fonts-recommended \
-               texlive-latex-extra texlive-xetex fonts-liberation pandoc
+          npm i -g @antora/cli @antora/site-generator-default @antora/pdf-extension
 
-      - name: Merge all markdown into single file
+      - name: Build HTML + PDF
         run: |
-          find . -type f -name '*.md' | grep -v node_modules | sort > md.list
-          pandoc -f markdown -t latex --pdf-engine=xelatex \
-                 --toc -N --top-level-division=chapter \
-                 -V geometry:margin=2.5cm -V mainfont=LiberationSerif \
-                 -o Vulkan-Guide.pdf $(cat md.list)
+          # 用官方 playbook，只额外加 PDF 输出
+          cp antora-playbook.yml antora-pdf-playbook.yml
+          cat <<EOF >> antora-pdf-playbook.yml
+          output:
+            destinations:
+            - provider: fs
+              path: build/site
+            - provider: pdf
+              path: build/vulkan-guide.pdf
+              page_break_level: 1
+              pdf_style: khronos
+          EOF
+          antora antora-pdf-playbook.yml
 
-      - name: Upload PDF
+      - name: Upload PDF artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Vulkan-Guide
-          path: Vulkan-Guide.pdf
-
-      - name: Release  # 可选：直接发一个 Release，方便直链下载
-        uses: softprops/action-gh-release@v1
-        if: github.event_name == 'workflow_dispatch'
-        with:
-          tag_name: pdf-${{ github.run_number }}
-          files: Vulkan-Guide.pdf
+          name: Vulkan-Guide-PDF
+          path: build/vulkan-guide.pdf
