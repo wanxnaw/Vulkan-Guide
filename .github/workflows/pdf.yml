@@ -20,6 +20,15 @@ jobs:
         with:
           node-version: 16
 
+      # 新增：装 Ruby 工具链
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.2
+      - name: Install asciidoctor-pdf
+        run: |
+          gem install asciidoctor-pdf
+          
       - name: Install Antora + PDF extension (local)
         run: |
           npm i --save-dev @antora/cli@3.1 @antora/site-generator@3.1 @antora/pdf-extension
